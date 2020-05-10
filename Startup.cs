@@ -31,18 +31,6 @@ namespace TourizmTest
         public IConfiguration Configuration { get; }
         public void ConfigureServices(IServiceCollection services)
         {
-            // services.AddAuthentication()
-            //     .AddCookie(cfg => cfg.SlidingExpiration = true)
-            //     .AddJwtBearer(cfg => {
-            //         cfg.TokenValidationParameters = 
-            //             new Microsoft.IdentityModel.Tokens.TokenValidationParameters(){
-            //             ValidIssuer = MVSJwtConstants.Issuer,
-            //             ValidAudience = MVSJwtConstants.Audience,
-            //             IssuerSigningKey = 
-            //                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(MVSJwtConstants.Key))
-            //         };
-            //     });
-
             services.AddDbContext<ApplicationContext>(options =>
                 options.UseNpgsql(Configuration.GetConnectionString("ApplicationContext")));
 
@@ -53,11 +41,10 @@ namespace TourizmTest
                     options.Password.RequireNonAlphanumeric = false;
                     options.Password.RequireUppercase = false;
                 })
-                .AddEntityFrameworkStores<ApplicationContext>()
-                .AddDefaultTokenProviders();
+                .AddRoles<IdentityRole>()
+                .AddEntityFrameworkStores<ApplicationContext>();
 
-            services
-                .AddAuthentication(options =>
+            services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -73,13 +60,21 @@ namespace TourizmTest
                         ValidIssuer = MVSJwtConstants.Issuer,
                         ValidAudience = MVSJwtConstants.Audience,
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(MVSJwtConstants.Key)),
-                        ClockSkew = TimeSpan.Zero 
+                        ClockSkew = TimeSpan.Zero,
+
+                        RequireExpirationTime = true,
+                        ValidateIssuer = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidateAudience = true 
                     };
                 });
 
+            // services.AddAuthorization(options =>
+            // {
+            //     options.AddPolicy("RequireAdministratorRole",
+            //          policy => policy.RequireRole("Owner"));
+            // });
 
-
-            // services.AddMvc();
             services.AddControllers();
             
         }
@@ -93,7 +88,6 @@ namespace TourizmTest
             app.UseHttpsRedirection();
 
             app.UseRouting();
-            // app.UseMvc();
 
             app.UseAuthentication();
             app.UseAuthorization();

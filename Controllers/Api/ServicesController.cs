@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Collections;
 
 using TourizmTest.Models;
 using TourizmTest.Serializers;
@@ -16,7 +18,7 @@ namespace TourizmTest.Controllers
 {
     [Route("api/[controller]/[action]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Roles="owner")]
     public class ServicesController : Controller
     {
         private UserManager<User> _userManager;
@@ -56,6 +58,7 @@ namespace TourizmTest.Controllers
             return BadRequest("Error data!");
         }
 
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public IActionResult Show(int? id)
         {
@@ -72,11 +75,14 @@ namespace TourizmTest.Controllers
         }
 
         [HttpPut("{id}")]
-        public IActionResult Edit(int? id, [FromForm]ServiceModelEditSerializer model)
+        public async Task<IActionResult> Edit(int? id, [FromForm]ServiceModelEditSerializer model)
         {
             if(id == null)
                 return BadRequest();
+            User user = await _userManager.FindByEmailAsync(_userManager.GetUserId(HttpContext.User));
             Service serviceDb = _db.Services.Find(id);
+            if(serviceDb.UserId != user.Id)
+                return BadRequest();
             if(serviceDb == null)
                 return NotFound();
             if(!ModelState.IsValid)
@@ -106,7 +112,7 @@ namespace TourizmTest.Controllers
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int? id)
+        public async Task<IActionResult> Delete(int? id)
         {
             if(id == null)
                 return BadRequest();
@@ -114,6 +120,9 @@ namespace TourizmTest.Controllers
                 .Include(p => p.PhotoFile).FirstOrDefault(p => p.Id == id);
             if(service == null)
                 return NotFound();
+            User user = await _userManager.FindByEmailAsync(_userManager.GetUserId(HttpContext.User));
+            if(service.UserId != user.Id)
+                return BadRequest();
 
             string path = Path.Combine(_environment.WebRootPath, "images");
             string filePath = Path.Combine(path, service.PhotoFile.Path);
@@ -122,6 +131,27 @@ namespace TourizmTest.Controllers
             _db.PhotoFiles.Remove(service.PhotoFile);
             _db.SaveChanges();
             return Ok(service);
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult Index(string serviceName)
+        {
+            IQueryable<Service> services = _db.Services.Include(p => p.PhotoFile).Include(p => p.User);
+            if(!string.IsNullOrEmpty(serviceName))
+            {
+                services = services.Where(p => p.Header.ToLower().Contains(serviceName.ToLower()));
+            }
+            ArrayList result = new ArrayList();
+            foreach(var model in services)
+            {
+                result.Add(new { Header = model.Header, 
+                Describing = model.Describing, Price = model.Price, 
+                Location = model.Location, User = 
+                new { UserName = model.User.UserName, Email = model.User.Email },
+                PhotoFile = new { Path = model.PhotoFile.Path } });
+            }
+            return Ok(result);
         }
 
         private int UploadFile(IFormFile uploadedFile)
@@ -143,6 +173,5 @@ namespace TourizmTest.Controllers
             }
             return 0;
         }
-
     }
 }

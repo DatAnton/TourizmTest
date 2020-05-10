@@ -34,8 +34,8 @@ namespace TourizmTest.Controllers.Api
             _roleManager = roleManager;
             if(!_roleManager.Roles.Any())
             {
-                _roleManager.CreateAsync(new IdentityRole("Tourist"));
-                _roleManager.CreateAsync(new IdentityRole("Owner"));
+                _roleManager.CreateAsync(new IdentityRole("tourist"));
+                _roleManager.CreateAsync(new IdentityRole("owner"));
             }
         }
 
@@ -45,6 +45,20 @@ namespace TourizmTest.Controllers.Api
         {
             return new List<string>{ "Customer1", "Customer2" };
         }
+
+        // [HttpGet("LoginError")]
+        // public IActionResult LoginError()
+        // {
+        //     Console.WriteLine("LoginError");
+        //     return BadRequest("You should Login!");
+        // }
+
+        // [HttpGet("AccessDenied")]
+        // public IActionResult AccessDenied()
+        // {
+        //     Console.WriteLine("AccessDenied");
+        //     return BadRequest("You should have access!");
+        // }
 
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromForm]UserSerializer model)
@@ -60,7 +74,7 @@ namespace TourizmTest.Controllers.Api
                     if(_roleManager.RoleExistsAsync(model.RoleName).Result)
                         await _userManager.AddToRoleAsync(user, model.RoleName);
                     
-                    return Created("Header", "You are successfully registered!");
+                    return Ok(new { user = user, role = _userManager.GetRolesAsync(user)});
                 }
                 return BadRequest(result.Errors);
                 
@@ -83,6 +97,9 @@ namespace TourizmTest.Controllers.Api
         {
             if(ModelState.IsValid){
                 User user = await _userManager.FindByEmailAsync(model.Email);
+                var role = await _userManager.GetRolesAsync(user);
+                IdentityOptions _options = new IdentityOptions();
+
                 var signInResult = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
                 if(signInResult.Succeeded)
                 {
@@ -93,7 +110,8 @@ namespace TourizmTest.Controllers.Api
                     {
                         new Claim(JwtRegisteredClaimNames.Sub, model.Email),
                         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                        new Claim(JwtRegisteredClaimNames.Email, model.Email)
+                        new Claim(JwtRegisteredClaimNames.Email, model.Email),
+                        new Claim(_options.ClaimsIdentity.RoleClaimType, role.FirstOrDefault())
                     };
 
                     var token = new JwtSecurityToken(
@@ -120,7 +138,7 @@ namespace TourizmTest.Controllers.Api
         public async Task<IActionResult> GetIdentity()
         {
             User user = await _userManager.FindByEmailAsync(_userManager.GetUserId(HttpContext.User));
-            return Ok(user);
+            return Ok(new { user = user, role = _userManager.GetRolesAsync(user).Result});
         }
 
     }
